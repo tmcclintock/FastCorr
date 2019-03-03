@@ -21,9 +21,27 @@ for file_name in glob.glob(os.path.join(include_dir,'*.h')):
     _ffi.cdef(open(file_name).read())
 _lib = _ffi.dlopen(lib_file)
 
-class Integrator(object):
+def _dc(x):
+    """Cast an array correctly with cffi."""
+    if isinstance(x, list): x = np.asarray(x, dtype=np.float64, order='C')
+    return _ffi.cast('double*', x.ctypes.data)
+
+def general_transform(x, t, F, nu, N = 1000, h = 1e-3):
+    """Perform a transform of the type
+    f(x) = \int_0^\inf dt/2pi^2 F(t/x) J_nu(t).
     """
-    Performs integrals using the Bessel-Quadrature rule.
-    """
-    def __init__(self):
-        pass
+    x = np.asarray(x)
+    scalar_input = False
+    if x.ndim == 0:
+        x = x[None] #makes x 1D
+        scalar_input = True
+    if x.ndim > 1:
+        raise Exception("x cannot be a >1D array.")
+
+    f = np.zeros_like(x)
+    _lib.bquad_transform(_dc(x), len(x), _dc(t), _dc(F), len(t),
+                         _dc(f), nu, N, h)
+    if scalar_input:
+        return np.squeeze(f)
+    return f
+

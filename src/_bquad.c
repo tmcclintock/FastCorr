@@ -72,7 +72,7 @@ int compute_Jnu_psi_dpsi(double nu, int N, double h,
 
 /* Perform the transform.
  * This specific function transforms functions of the form
- * \int_0^\inf dk/2PI P(k)*J_nu(k)
+ * \int_0^\inf dk/2PI P(k/r)*J_nu(k)
  * If used for hankel transforms or 3D Fourier transforms
  * then the extra factors of k must be handled externally
  * as well as the change of variables from k to k*r.
