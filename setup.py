@@ -14,6 +14,9 @@ try:
 except OSError:
     raise Exception("Error: must have GSL installed and gsl-config working")
 
+#Append FFTW flag for the linker
+lflags.append('-lfftw3')
+
 ext=Extension("bquad._bquad",
               sources,
               depends=headers,
