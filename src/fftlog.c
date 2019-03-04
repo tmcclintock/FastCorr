@@ -7,6 +7,11 @@
 //#include "fftlog.h"
 
 #define PI 3.14159265358979323846
+#define PI_2 1.5707963267948966 /// pi/2
+#define PI_times_2 6.28318530718 // 2*pi
+#define inv_PI 0.31830988618 // 1/pi
+#define log2 0.6931471805599453 //ln(2)
+#define PI2cubed 248.05021344239853 //(2*pi)^3
 
 /* Compute the discrete Hankel transform of the function a(r).  See the FFTLog
  * documentation (or the Fortran routine of the same name in the FFTLog
@@ -59,27 +64,29 @@ static void lngamma_4(double x, double y, double* lnr, double* arg)
 
 static double goodkr(int N, double mu, double q, double L, double kr)
 {
+  double N_L = N/L;
   double xp = (mu+1+q)/2;
   double xm = (mu+1-q)/2;
-  double y = PI*N/(2*L);
+  double y = PI_2*N_L;
   double lnr, argm, argp;
   lngamma_4(xp, y, &lnr, &argp);
   lngamma_4(xm, y, &lnr, &argm);
-  double arg = log(2/kr) * N/L + (argp + argm)/PI;
+  double arg = log(2./kr) * N_L + (argp + argm)*inv_PI;
   double iarg = round(arg);
   if(arg != iarg)
-    kr *= exp((arg - iarg)*L/N);
+    kr *= exp((arg - iarg)/N_L);
   return kr;
 }
 
-void compute_u_coefficients(int N, double mu, double q, double L, double kcrc, double complex u[])
+void compute_u_coefficients(int N, double mu, double q, double L,
+			    double kcrc, double complex u[])
 {
   double y = PI/L;
   double k0r0 = kcrc * exp(-L);
-  double t = -2*y*log(k0r0/2);
+  double t = -2*y*log(k0r0*0.5);
   
   if(q == 0) {
-    double x = (mu+1)/2;
+    double x = (mu+1)*0.5;
     double lnr, phi;
     for(int m = 0; m <= N/2; m++) {
       lngamma_4(x, m*y, &lnr, &phi);
@@ -87,13 +94,13 @@ void compute_u_coefficients(int N, double mu, double q, double L, double kcrc, d
     }
   }
   else {
-    double xp = (mu+1+q)/2;
-    double xm = (mu+1-q)/2;
+    double xp = (mu+1+q)*0.5;
+    double xm = (mu+1-q)*0.5;
     double lnrp, phip, lnrm, phim;
     for(int m = 0; m <= N/2; m++) {
       lngamma_4(xp, m*y, &lnrp, &phip);
       lngamma_4(xm, m*y, &lnrm, &phim);
-      u[m] = polar(exp(q*log(2) + lnrp - lnrm), m*t + phip - phim);
+      u[m] = polar(exp(q*log2 + lnrp - lnrm), m*t + phip - phim);
     }
   }
   
@@ -112,14 +119,18 @@ void fht(int N, const double r[], const double complex a[], double k[],
   if(u == NULL) {
     if(noring)
       kcrc = goodkr(N, mu, q, L, kcrc);
-    ulocal = malloc (sizeof(complex double)*N); 
+    ulocal = malloc(sizeof(complex double)*N); 
     compute_u_coefficients(N, mu, q, L, kcrc, ulocal);
     u = ulocal;
   }
   
   /* Compute the convolution b = a*u using FFTs */
-  fftw_plan forward_plan = fftw_plan_dft_1d(N, (fftw_complex*) a, (fftw_complex*) b,  -1, FFTW_ESTIMATE);
-  fftw_plan reverse_plan = fftw_plan_dft_1d(N, (fftw_complex*) b, (fftw_complex*) b, +1, FFTW_ESTIMATE);
+  fftw_plan forward_plan = fftw_plan_dft_1d(N, (fftw_complex*) a,
+					    (fftw_complex*) b,  -1,
+					    FFTW_ESTIMATE);
+  fftw_plan reverse_plan = fftw_plan_dft_1d(N, (fftw_complex*) b,
+					    (fftw_complex*) b, +1,
+					    FFTW_ESTIMATE);
   fftw_execute(forward_plan);
   for(int m = 0; m < N; m++)
     b[m] *= u[m] / (double)(N);       // divide by N since FFTW doesn't normalize the inverse FFT
@@ -161,31 +172,40 @@ void fftlog_ComputeXi2D(double bessel_order,int N,const double l[],
 }
 
 void fftlog_ComputeXiLM(double l, double m, int N, const double k[],
-			const double pk[], double r[], double xi[])
+			const double pk[], double r[], double xi[],
+			double q)
 {
-  double complex* a = malloc(sizeof(complex double)*N);
-  double complex* b = malloc(sizeof(complex double)*N);
+  static int init_flag = 0;
+  static int N_old = -99999;
+  static double complex* a = NULL;
+  static double complex* b = NULL;
+  if ((init_flag == 0) || (N != N_old)){
+    if (a!=NULL) free(a);
+    if (b!=NULL) free(b);
+    a = malloc(sizeof(complex double)*N);
+    b = malloc(sizeof(complex double)*N);
+    N_old = N;
+    init_flag = 1;
+  }
   
   for(int i = 0; i < N; i++)
-    a[i] = pow(k[i], m - 0.5) * pk[i];
-  fht(N, k, a, r, b, l + 0.5, 0, 1, 1, NULL);
+    a[i] = pow(k[i], m-0.5) * pk[i];
+  fht(N, k, a, r, b, l + 0.5, q, 1, 1, NULL);
   for(int i = 0; i < N; i++)
-    xi[i] = creal(pow(2*PI*r[i], -(m-0.5)) * b[i]);
+    xi[i] = creal(pow(PI_times_2*r[i], 0.5-m) * b[i]);
   
-  free(a);
-  free(b);
 }
 
 void pk2xi(int N, const double k[], const double pk[], double r[], double xi[])
 {
-  fftlog_ComputeXiLM(0, 2, N, k, pk, r, xi);
+  fftlog_ComputeXiLM(0, 2, N, k, pk, r, xi, 0);
 }
 
 void xi2pk(int N, const double r[], const double xi[], double k[], double pk[])
 {
-  static const double TwoPiCubed = 8*PI*PI*PI;
-  fftlog_ComputeXiLM(0, 2, N, r, xi, k, pk);
+  //static const double TwoPiCubed = 8*PI*PI*PI;
+  fftlog_ComputeXiLM(0, 2, N, r, xi, k, pk, 0);
   for(int j = 0; j < N; j++)
-    pk[j] *= TwoPiCubed;
+    pk[j] *= PI2cubed;
 }
 

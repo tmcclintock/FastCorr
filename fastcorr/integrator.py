@@ -92,14 +92,17 @@ def fftlog_spherical_transform(x, t, F, reverse=False):
     xtemp = np.logspace(np.log10(np.min(x)), np.log10(np.max(x)), len(t))
     ftemp = np.zeros_like(xtemp)
 
-    _lib.pk2xi(len(xtemp), _dc(t), _dc(F), _dc(xtemp), _dc(ftemp))
+    if reverse:
+        _lib.xi2pk(len(xtemp), _dc(t), _dc(F), _dc(xtemp), _dc(ftemp))
+    else:
+        _lib.pk2xi(len(xtemp), _dc(t), _dc(F), _dc(xtemp), _dc(ftemp))
 
     #Re-interpolate at the x values we want
     spl = interp.interp1d(np.log(xtemp), ftemp, fill_value="extrapolate")
     f = spl(np.log(x))
     
-    if reverse:
-        f*=8*np.pi**3
+    #if reverse:
+    #    f*=8*np.pi**3
     
     if scalar_input:
         return np.squeeze(f)
