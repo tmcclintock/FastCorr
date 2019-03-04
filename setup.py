@@ -2,7 +2,7 @@ import sys, os, glob
 from setuptools import setup, Extension
 import subprocess
 
-os.system('ln -f -s ../include fastcorr/include')
+os.system('ln -f -h -s ../include fastcorr/include')
 
 sources = glob.glob(os.path.join('src','*.c'))
 headers = glob.glob(os.path.join('include','*.h'))
